@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Estado de Pagos - Jerovia N°9</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fff0f5;
+      color: #333;
+      padding: 2rem;
+      text-align: center;
+    }
+    h1 {
+      color: #d63384;
+    }
+    input[type="text"] {
+      padding: 10px;
+      width: 80%;
+      max-width: 400px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #d63384;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    #resultado {
+      margin-top: 2rem;
+      background: white;
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+      min-height: 80px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Estado de Pagos<br>Asamblea Jerovia N°9</h1>
+  <p>Ingresá tu nombre exactamente como figura en la planilla:</p>
+  <input type="text" id="nombre" placeholder="Ej: Ana Lopez" />
+  <br />
+  <button onclick="buscar()">Consultar</button>
+
+  <div id="resultado"></div>
+
+  <script>
+    const urlCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQoODpv83IyGi4ofwV8Zi55B_yA2kCW8OADfnOSLyWa9ihiwqFzd-49YDO9WFDIxn_fUhtx67H28510/pub?gid=0&single=true&output=csv";
+
+    async function cargarDatos() {
+      try {
+        const respuesta = await fetch(urlCSV);
+        if (!respuesta.ok) throw new Error("No se pudo cargar la planilla.");
+        const texto = await respuesta.text();
+        const lineas = texto.trim().split('\n');
+        // Usamos split con regex para no romperse si hay comas dentro de campos (opcional)
+        const datos = lineas.slice(1).map(linea => {
+          const columnas = linea.split(',');
+          // Si tu CSV usa coma dentro de texto, este split simple puede fallar, pero para tu caso debe andar.
+          return {
+            nombre: columnas[0].trim(),
+            deuda: columnas[1].trim(),
+            ultimoMes: columnas[2].trim(),
+            observacion: columnas[3] ? columnas[3].trim() : ''
+          };
+        });
+        return datos;
+      } catch (error) {
+        console.error(error);
+        return null;
+      }
+    }
+
+    async function buscar() {
+      const nombreIngresado = document.getElementById("nombre").value.trim().toLowerCase();
+      const resultadoDiv = document.getElementById("resultado");
+      resultadoDiv.innerHTML = "<p>Cargando datos...</p>";
+      const datos = await cargarDatos();
+
+      if (!datos) {
+        resultadoDiv.innerHTML = "<p style='color:red;'>Error al cargar los datos. Intentá de nuevo más tarde.</p>";
+        return;
+      }
+
+      const hermana = datos.find(h => h.nombre.toLowerCase() === nombreIngresado);
+
+      if (hermana) {
+        let aviso = '';
+        if (Number(hermana.deuda.replace(/\./g, '')) > 500000) {
+          aviso = `<p style="color: red;"><strong>⚠ Favor comunicarse con la tesorera, la Ilustre Preceptora o la Madre Preceptora</strong></p>`;
+        }
+        resultadoDiv.innerHTML = `
+          <p><strong>Nombre:</strong> ${hermana.nombre}</p>
+          <p><strong>Deuda total:</strong> ₲ ${Number(hermana.deuda.replace(/\./g, '')).toLocaleString()}</p>
+          <p><strong>Último mes pagado:</strong> ${hermana.ultimoMes}</p>
+          ${aviso}
+        `;
+      } else {
+        resultadoDiv.innerHTML = `<p style="color: gray;">No se encontró a ninguna hermana con ese nombre.</p>`;
+      }
+    }
+  </script>
+</body>
+</html>
