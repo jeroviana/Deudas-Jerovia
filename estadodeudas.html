@@ -56,13 +56,21 @@
   <script>
     const urlCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQoODpv83IyGi4ofwV8Zi55B_yA2kCW8OADfnOSLyWa9ihiwqFzd-49YDO9WFDIxn_fUhtx67H28510/pub?gid=0&single=true&output=csv";
 
-    // Función para eliminar tildes y pasar a minúsculas
+    // Normaliza texto quitando tildes y pasando a minúsculas
     function normalizarTexto(texto) {
       return texto
         .toLowerCase()
-        .normalize("NFD")                 // Descompone los caracteres con tilde
-        .replace(/[\u0300-\u036f]/g, "") // Elimina los signos de tilde
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .trim();
+    }
+
+    // Parser CSV simple
+    function parseCSV(texto) {
+      const lineas = texto.trim().split('\n');
+      const headers = lineas[0].split(',').map(h => h.trim().toLowerCase());
+      const rows = lineas.slice(1).map(linea => linea.split(',').map(c => c.trim()));
+      return { headers, rows };
     }
 
     async function cargarDatos() {
@@ -70,16 +78,20 @@
         const respuesta = await fetch(urlCSV);
         if (!respuesta.ok) throw new Error("No se pudo cargar la planilla.");
         const texto = await respuesta.text();
-        const lineas = texto.trim().split('\n');
-        const datos = lineas.slice(1).map(linea => {
-          const columnas = linea.split(',');
-          return {
-            nombre: columnas[0].trim(),
-            deuda: columnas[27].trim(),      // Columna "total deuda"
-            ultimoMes: columnas[28].trim(),  // Columna "último mes pagado"
-            observacion: columnas[29] ? columnas[29].trim() : ''
-          };
-        });
+        const { headers, rows } = parseCSV(texto);
+
+        const idxNombre = headers.indexOf('nombre');
+        const idxDeuda = headers.indexOf('total deuda');
+        const idxUltimoMes = headers.indexOf('último mes pagado');
+        const idxObs = headers.indexOf('observaciones');
+
+        const datos = rows.map(row => ({
+          nombre: row[idxNombre] || '',
+          deuda: row[idxDeuda] || '',
+          ultimoMes: row[idxUltimoMes] || '',
+          observacion: row[idxObs] || ''
+        }));
+
         return datos;
       } catch (error) {
         console.error(error);
@@ -88,13 +100,12 @@
     }
 
     async function buscar() {
-      const nombreIngresadoRaw = document.getElementById("nombre").value;
-      const nombreIngresado = normalizarTexto(nombreIngresadoRaw);
-
+      const input = document.getElementById("nombre").value;
+      const nombreIngresado = normalizarTexto(input);
       const resultadoDiv = document.getElementById("resultado");
       resultadoDiv.innerHTML = "<p>Cargando datos...</p>";
-      const datos = await cargarDatos();
 
+      const datos = await cargarDatos();
       if (!datos) {
         resultadoDiv.innerHTML = "<p style='color:red;'>Error al cargar los datos. Intentá de nuevo más tarde.</p>";
         return;
@@ -103,19 +114,20 @@
       const hermana = datos.find(h => normalizarTexto(h.nombre) === nombreIngresado);
 
       if (hermana) {
-        let aviso = '';
         const deudaNum = Number(hermana.deuda.replace(/\./g, '').replace(/,/g, ''));
-        if (deudaNum > 500000) {
+        let aviso = '';
+        if (!isNaN(deudaNum) && deudaNum > 500000) {
           aviso = `<p style="color: red;"><strong>⚠ Favor comunicarse con la tesorera, la Ilustre Preceptora o la Madre Preceptora</strong></p>`;
         }
+
         resultadoDiv.innerHTML = `
           <p><strong>Nombre:</strong> ${hermana.nombre}</p>
-          <p><strong>Deuda total:</strong> ₲ ${deudaNum.toLocaleString()}</p>
-          <p><strong>Último mes pagado:</strong> ${hermana.ultimoMes}</p>
+          <p><strong>Deuda total:</strong> ₲ ${deudaNum.toLocaleString('es-PY')}</p>
+          <p><strong>Último mes pagado:</strong> ${hermana.ultimoMes || '—'}</p>
           ${aviso}
         `;
       } else {
-        resultadoDiv.innerHTML = `<p style="color: gray;">No se encontró a ninguna hermana con ese nombre.</p>`;
+        resultadoDiv.innerHTML = `<p style="color: gray;">No se encontró a ninguna hermana con ese nombre.<br>Verificá que esté bien escrito y con los espacios correctos.</p>`;
       }
     }
   </script>
