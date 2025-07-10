@@ -56,21 +56,28 @@
   <script>
     const urlCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQoODpv83IyGi4ofwV8Zi55B_yA2kCW8OADfnOSLyWa9ihiwqFzd-49YDO9WFDIxn_fUhtx67H28510/pub?gid=0&single=true&output=csv";
 
+    // Función para eliminar tildes y pasar a minúsculas
+    function normalizarTexto(texto) {
+      return texto
+        .toLowerCase()
+        .normalize("NFD")                 // Descompone los caracteres con tilde
+        .replace(/[\u0300-\u036f]/g, "") // Elimina los signos de tilde
+        .trim();
+    }
+
     async function cargarDatos() {
       try {
         const respuesta = await fetch(urlCSV);
         if (!respuesta.ok) throw new Error("No se pudo cargar la planilla.");
         const texto = await respuesta.text();
         const lineas = texto.trim().split('\n');
-        // Usamos split con regex para no romperse si hay comas dentro de campos (opcional)
         const datos = lineas.slice(1).map(linea => {
           const columnas = linea.split(',');
-          // Si tu CSV usa coma dentro de texto, este split simple puede fallar, pero para tu caso debe andar.
           return {
             nombre: columnas[0].trim(),
-            deuda: columnas[1].trim(),
-            ultimoMes: columnas[2].trim(),
-            observacion: columnas[3] ? columnas[3].trim() : ''
+            deuda: columnas[27].trim(),      // Columna "total deuda"
+            ultimoMes: columnas[28].trim(),  // Columna "último mes pagado"
+            observacion: columnas[29] ? columnas[29].trim() : ''
           };
         });
         return datos;
@@ -81,7 +88,9 @@
     }
 
     async function buscar() {
-      const nombreIngresado = document.getElementById("nombre").value.trim().toLowerCase();
+      const nombreIngresadoRaw = document.getElementById("nombre").value;
+      const nombreIngresado = normalizarTexto(nombreIngresadoRaw);
+
       const resultadoDiv = document.getElementById("resultado");
       resultadoDiv.innerHTML = "<p>Cargando datos...</p>";
       const datos = await cargarDatos();
@@ -91,16 +100,17 @@
         return;
       }
 
-      const hermana = datos.find(h => h.nombre.toLowerCase() === nombreIngresado);
+      const hermana = datos.find(h => normalizarTexto(h.nombre) === nombreIngresado);
 
       if (hermana) {
         let aviso = '';
-        if (Number(hermana.deuda.replace(/\./g, '')) > 500000) {
+        const deudaNum = Number(hermana.deuda.replace(/\./g, '').replace(/,/g, ''));
+        if (deudaNum > 500000) {
           aviso = `<p style="color: red;"><strong>⚠ Favor comunicarse con la tesorera, la Ilustre Preceptora o la Madre Preceptora</strong></p>`;
         }
         resultadoDiv.innerHTML = `
           <p><strong>Nombre:</strong> ${hermana.nombre}</p>
-          <p><strong>Deuda total:</strong> ₲ ${Number(hermana.deuda.replace(/\./g, '')).toLocaleString()}</p>
+          <p><strong>Deuda total:</strong> ₲ ${deudaNum.toLocaleString()}</p>
           <p><strong>Último mes pagado:</strong> ${hermana.ultimoMes}</p>
           ${aviso}
         `;
